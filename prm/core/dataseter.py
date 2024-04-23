@@ -1,4 +1,4 @@
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 import torch
@@ -51,14 +51,37 @@ def get_collated_dataset(tokenizer, dataframe, stepend_token: str):
     
     return dict(input_ids=inputs['input_ids'], labels=labels, attention_mask=inputs['attention_mask'])
 
-def get_dataloader(dataset, collated_dataset, world_size, local_rank, shuffle, seed, batch_size):
+def get_dataloader(collated_dataset, world_size, local_rank, shuffle, seed, batch_size, drop_last):
+    cated_dataset = TensorDataset(
+        collated_dataset['input_ids'], collated_dataset['labels'], collated_dataset['attention_mask']
+    )
+    
+    """
+    cated_data ->
+    (tensor("input_ids"), tensor("labels"), tensor("attention_mask"))
+    """
+    
     sampler = DistributedSampler(
-        dataset, num_replicas=world_size, rank=local_rank, shuffle=shuffle, seed=seed
+        cated_dataset, num_replicas=world_size, rank=local_rank, shuffle=shuffle, seed=seed
     )
 
     loader = DataLoader(
-        collated_dataset, shuffle=False, pin_memory=True, drop_last=True, batch_size=batch_size,
+        cated_dataset, shuffle=False, pin_memory=True, drop_last=drop_last, batch_size=batch_size,
         collate_fn=None, sampler=sampler
     )
+    
+    """
+    output structure for my understanding, 
+    e.g. batch_size = 2, dataset_size = 4 ->
+    [
+        [tensor(["input_ids1","input_ids2]), 
+         tensor(["labels1","labels2"]), 
+         tensor(["attention_mask1","attention_mask2"])],
+        [tensor(["input_ids1","input_ids2]), 
+         tensor(["labels1","labels2"]), 
+         tensor(["attention_mask1","attention_mask2"])]
+    ]
+         
+    """
 
     return sampler, loader
