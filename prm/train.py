@@ -6,7 +6,7 @@ from core.utils import (
 )
 
 from torch.distributed.fsdp.api import ShardingStrategy
-from torch.distributed.fsdp import (FullyShardedDataParallel as FSDP, MixedPrecision)
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, MixedPrecision
 from torch.distributed.fsdp.fully_sharded_data_parallel import ShardingStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
@@ -92,12 +92,13 @@ if __name__ == "__main__":
     disable_dropout = False
     gradient_checkpointing = True
     clip_gradients = True
+    drop_last = False
     shuffle = True  # multipack sampler already does random sampling
     train_batch_size = 8  # adjust as needed
     validation_batch_size = 1  # adjust as needed
     epochs = 1  # adjust as needed
     acc_steps = 0  # TODO: not implemented here yet
-    lr = 2e-06  # adjust as needed
+    lr = 1e-06  # adjust as needed
     weight_decay = 0.0  # adjust as needed
     gradient_clipping = 1.0  # adjust as needed
     train_on_inputs = False  # whether to train on instruction tokens
@@ -135,7 +136,7 @@ if __name__ == "__main__":
     collated_dataset = get_collated_dataset(tokenizer=tokenizer, dataframe=train_dataset, stepend_token="")
     
     train_sampler, train_loader = get_dataloader(
-        dataset=train_dataset, collated_dataset=collated_dataset,
+        collated_dataset=collated_dataset, drop_last=drop_last,
         world_size=world_size, local_rank=local_rank,
         shuffle=shuffle, seed=seed, batch_size=train_batch_size,
     )
@@ -193,11 +194,13 @@ if __name__ == "__main__":
 
         for step, batch in pbar:
             current_step = step + 1
+            
+            input_ids, labels, attention_mask = batch
 
             inputs = {
-                "input_ids": batch["input_ids"].to(model.device),
-                "labels": batch["labels"].to(model.device),
-                "attention_mask": batch["attention_mask"].to(model.device)
+                "input_ids":input_ids.to(model.device),
+                "labels": labels.to(model.device),
+                "attention_mask": attention_mask.to(model.device)
             }
             
             # forward
@@ -233,26 +236,6 @@ if __name__ == "__main__":
                     grad_norm,
                     scheduler,
                 )
-
-            # # runs eval 2x an epoch, adjust as needed
-            # if should_run_eval(total_steps_per_epoch, 2, current_step):
-            #     validation_loss = evaluation(
-            #         model,
-            #         val_loader,
-            #         wandb,
-            #         local_rank,
-            #     )
-
-            #     save_model(
-            #         local_rank,
-            #         model,
-            #         tokenizer,
-            #         output_dir,
-            #         current_epoch,
-            #         current_step,
-            #     )
-
-            #     model.train()
         
         save_model(local_rank, model, tokenizer, output_dir, epochs, "final")
 
