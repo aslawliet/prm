@@ -24,7 +24,7 @@ def setup_model(model_name, max_length):
     model =  AutoModelForCausalLM.from_pretrained(
         pretrained_model_name_or_path=model_name,
         use_cache=False,
-        torch_dtype=torch.float16,
+        torch_dtype=torch.bfloat16,
     )
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -117,9 +117,9 @@ if __name__ == "__main__":
         device_id=torch.cuda.current_device(),
         # use_orig_params=False,
         mixed_precision=MixedPrecision(
-            param_dtype=torch.float16,
-            reduce_dtype=torch.float16,
-            buffer_dtype=torch.float16,
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.bfloat16,
+            buffer_dtype=torch.bfloat16,
         ),
         backward_prefetch=None,
         param_init_fn=None,
